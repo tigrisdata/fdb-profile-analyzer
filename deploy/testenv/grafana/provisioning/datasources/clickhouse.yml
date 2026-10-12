@@ -1,0 +1,25 @@
+# Pre-wires the ClickHouse data source so the test bed is usable the moment it
+# is up. $CLICKHOUSE_* are interpolated from the grafana service's environment,
+# which docker-compose.yml feeds from .env.
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse
+    # Stable uid so `make testenv_verify` can health-check it by API.
+    uid: fdb-clickhouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    orgId: 1
+    isDefault: true
+    editable: true
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      secure: false
+      username: $CLICKHOUSE_USER
+      defaultDatabase: $CLICKHOUSE_DB
+      dialTimeout: 10
+      queryTimeout: 60
+    secureJsonData:
+      password: $CLICKHOUSE_PASSWORD

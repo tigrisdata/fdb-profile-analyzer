@@ -1,0 +1,42 @@
+# Two-shard ClickHouse overlay: `docker compose -f docker-compose.yml -f
+# docker-compose.sharded.yml ...`, or just `make testenv_up SHARDED=1`.
+#
+# The schema is identical in both topologies — base `_local` tables plus a
+# Distributed table over the `fdb` cluster — so this file changes only how
+# wide that cluster is: it swaps node 1's cluster definition for the two-shard
+# variant and adds the second node. Sharding only, no replication: no Keeper,
+# and losing a shard loses that shard's rows — the same shed-history stance
+# the rest of the pipeline takes.
+services:
+  clickhouse:
+    volumes:
+      # Same container path as the base file's mount, so this definition wins.
+      - ./deploy/testenv/clickhouse/config/cluster-sharded.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+
+  clickhouse2:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}
+    ports:
+      # Published so the topology test can compare per-shard counts from the
+      # host; nothing else talks to this node directly.
+      - "${CLICKHOUSE2_NATIVE_PORT:-9001}:9000"
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse2-data:/var/lib/clickhouse
+      - ./deploy/testenv/clickhouse/config/cluster-sharded.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--host", "127.0.0.1", "--user", "${CLICKHOUSE_USER}", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+volumes:
+  clickhouse2-data:

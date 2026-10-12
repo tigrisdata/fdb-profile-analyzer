@@ -1,0 +1,153 @@
+name: release
+
+# Every merge to main is a release. The version bump comes from the commit
+# messages since the last release tag — major: / minor: / patch: on the
+# subject line, the highest one wins — so a pull request's own commits decide
+# what it ships as. The release carries the linux/amd64 fdbprof binary and its
+# checksum; a second job builds the repo-root Dockerfile and pushes it to
+# quay.io/tigrisdata/fdb-profile-analyzer, tagged with the version, latest and
+# github-<short sha>, with the QUAY_USER and QUAY_TOKEN secrets — a robot
+# account with write permission on the repository. See README.md, "CI and
+# releases".
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag, build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      skip: ${{ steps.version.outputs.skip }}
+      next: ${{ steps.version.outputs.next }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Next version from the commits since the last release
+        id: version
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --quiet
+          last="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1)"
+          if [ -z "$last" ]; then
+            last=v0.0.0
+            range=HEAD
+          else
+            range="$last..HEAD"
+          fi
+          if [ "$(git rev-list --count "$range")" -eq 0 ]; then
+            echo "nothing since $last; no release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Subjects and bodies of every non-merge commit since the last release:
+          # a squash merge lists the pull request's commits in its body, so the
+          # prefixes survive either merge style. The highest bump wins.
+          log="$(git log --no-merges --format='%s%n%b' "$range")"
+          bump=patch
+          grep -qE '(^|[[:space:]*-])minor: ' <<<"$log" && bump=minor
+          grep -qE '(^|[[:space:]*-])major: ' <<<"$log" && bump=major
+          IFS=. read -r major minor patch <<<"${last#v}"
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          next="v$major.$minor.$patch"
+          echo "$last -> $next ($bump)"
+          {
+            echo "skip=false"
+            echo "last=$last"
+            echo "next=$next"
+            echo "bump=$bump"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the linux/amd64 binary, in the Go container
+        if: steps.version.outputs.skip != 'true'
+        run: make dist VERSION=${{ steps.version.outputs.next }}
+
+      - name: Tag and publish the release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.version.outputs.next }}
+          LAST: ${{ steps.version.outputs.last }}
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEXT" -m "$NEXT ($BUMP since $LAST)"
+          git push origin "$NEXT"
+          if [ "$LAST" = v0.0.0 ]; then
+            gh release create "$NEXT" dist/* --title "$NEXT" --generate-notes
+          else
+            gh release create "$NEXT" dist/* --title "$NEXT" --generate-notes --notes-start-tag "$LAST"
+          fi
+
+  image:
+    name: Build and push the image
+    needs: release
+    if: needs.release.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the released commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Short commit sha, and the FoundationDB client version the test bed pins
+        id: inputs
+        run: |
+          set -euo pipefail
+          echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "fdb_version=$(sed -n 's/^FDB_VERSION=//p' .env)" >> "$GITHUB_OUTPUT"
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: quay.io/tigrisdata/fdb-profile-analyzer
+          tags: |
+            type=raw,value=${{ needs.release.outputs.next }}
+            type=raw,value=latest
+            type=raw,value=github-${{ steps.inputs.outputs.short }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.release.outputs.next }}
+            GIT_HASH=${{ steps.inputs.outputs.short }}
+            FDB_VERSION=${{ steps.inputs.outputs.fdb_version }}

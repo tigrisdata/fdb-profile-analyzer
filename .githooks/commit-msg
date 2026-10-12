@@ -1,0 +1,34 @@
+#!/bin/sh
+# commit-msg hook: every commit subject names its version bump.
+#
+# The release that every merge to main produces reads the bump from the commit
+# subjects since the last release tag, so a commit without one would ship
+# without saying how. Install with `make hooks` (git config core.hooksPath
+# .githooks); CI runs the same check on every pull request.
+#
+#   major: <subject>   incompatible change — the major version increases
+#   minor: <subject>   new capability      — the minor version increases
+#   patch: <subject>   fix or refinement   — the patch version increases
+#
+# Merge commits pass (the release ignores them), and so do fixup!/squash!
+# commits, which an autosquash rebase folds into a prefixed commit before the
+# pull request is merged — CI rejects them if they survive.
+msg_file=$1
+subject=$(grep -v '^#' "$msg_file" | grep -m1 -v '^[[:space:]]*$')
+case "$subject" in
+  major:\ *|minor:\ *|patch:\ *) exit 0 ;;
+  Merge\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+cat >&2 <<MSG
+commit refused: the subject must start with one of
+
+  major: <subject>   incompatible change
+  minor: <subject>   new capability
+  patch: <subject>   fix or refinement
+
+got: ${subject:-<empty>}
+
+The merge to main releases a version bumped by the highest prefix among the
+pull request's commits. See docs/contributing.md.
+MSG
+exit 1

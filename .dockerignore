@@ -1,0 +1,9 @@
+.git
+.github
+.githooks
+.testenv
+dist
+test-results
+deploy/testenv/grafana
+docs
+*.md

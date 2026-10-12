@@ -1,0 +1,17 @@
+# Any dashboard JSON dropped into deploy/testenv/grafana/dashboards is picked up
+# from disk. `allowUiUpdates` plus `updateIntervalSeconds` means you can edit a
+# dashboard in the browser, export the JSON over the file, and see it reload
+# without restarting Grafana.
+apiVersion: 1
+
+providers:
+  - name: fdb-profiles
+    orgId: 1
+    folder: 'FDB Profiles'
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

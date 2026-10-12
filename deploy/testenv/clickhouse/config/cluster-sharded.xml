@@ -1,0 +1,28 @@
+<!-- The `fdb` cluster, two-shard variant: what docker-compose.sharded.yml
+     mounts on every node instead of cluster-single.xml. Hosts are compose
+     service names; credentials come from the same env the image creates the
+     user from, so inter-shard queries authenticate as the ordinary test user. -->
+<clickhouse>
+    <remote_servers replace="replace">
+        <fdb>
+            <shard>
+                <internal_replication>false</internal_replication>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                    <user from_env="CLICKHOUSE_USER"/>
+                    <password from_env="CLICKHOUSE_PASSWORD"/>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>false</internal_replication>
+                <replica>
+                    <host>clickhouse2</host>
+                    <port>9000</port>
+                    <user from_env="CLICKHOUSE_USER"/>
+                    <password from_env="CLICKHOUSE_PASSWORD"/>
+                </replica>
+            </shard>
+        </fdb>
+    </remote_servers>
+</clickhouse>

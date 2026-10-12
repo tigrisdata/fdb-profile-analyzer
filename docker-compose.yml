@@ -1,0 +1,172 @@
+# Integration test bed for the FDB profile -> ClickHouse -> Grafana pipeline.
+#
+# Three single-process services:
+#   fdb         one-node FoundationDB, reachable from the host on 127.0.0.1:4500
+#   clickhouse  profile storage
+#   grafana     query-analytics UI, pre-wired to ClickHouse
+#
+# Bring it up with `make testenv_up` rather than `docker compose up` directly:
+# a fresh FoundationDB is unconfigured and has profiling off, and the Makefile
+# runs those one-time steps for you.
+
+services:
+  fdb:
+    image: foundationdb/foundationdb:${FDB_VERSION}
+    ports:
+      # Must be an identical host:container mapping — see FDB_NETWORKING_MODE below.
+      - "${FDB_PORT}:${FDB_PORT}/tcp"
+    environment:
+      # "host" makes fdbserver advertise 127.0.0.1 as its public address while
+      # still listening on 0.0.0.0 inside the container. That is what lets a
+      # client on the host use the cluster file below and reach the process
+      # through the published port. This does NOT mean host networking.
+      FDB_NETWORKING_MODE: host
+      FDB_PORT: ${FDB_PORT}
+      FDB_COORDINATOR_PORT: ${FDB_PORT}
+      FDB_CLUSTER_FILE_CONTENTS: "docker:docker@127.0.0.1:${FDB_PORT}"
+      FDB_STORAGE_ENGINE: ${FDB_STORAGE_ENGINE}
+      FDB_PROFILE_RATE: ${FDB_PROFILE_RATE}
+      FDB_PROFILE_SIZE: ${FDB_PROFILE_SIZE}
+    volumes:
+      - fdb-data:/var/fdb/data
+      - fdb-logs:/var/fdb/logs
+      - ./deploy/testenv/fdb:/testenv:ro
+    healthcheck:
+      # Reports unhealthy until the database has been configured, which
+      # `make testenv_up` does. That is expected on a cold start.
+      test: ["CMD-SHELL", "fdbcli --exec 'status minimal' --timeout 5 2>/dev/null | grep -q 'The database is available'"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 5s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT}:9000"
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      # Lets the test user run DDL, so `make testenv_schema` can apply migrations.
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./schema:/testenv/schema:ro
+      # Defines the `fdb` cluster the Distributed tables route over — one
+      # shard here; docker-compose.sharded.yml swaps this same target for the
+      # two-shard variant.
+      - ./deploy/testenv/clickhouse/config/cluster-single.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--host", "127.0.0.1", "--user", "${CLICKHOUSE_USER}", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      # Pulled on first boot only; cached in the grafana-data volume afterwards.
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      # Frictionless local browsing; basic auth stays on for the API checks.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_USERS_DEFAULT_THEME: dark
+      # Interpolated into provisioning/datasources/clickhouse.yml.
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/testenv/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/testenv/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+
+  # Continuous load generator. Behind a compose profile so `make testenv_up`
+  # never starts it; `make load_start` / `make load_stop` control it.
+  loadgen:
+    build:
+      context: .
+      dockerfile: deploy/loadgen/Dockerfile
+      args:
+        FDB_VERSION: ${FDB_VERSION}
+    profiles: ["load"]
+    # FDB advertises 127.0.0.1 as its public address, so anything that talks to
+    # it from inside Docker must share its network namespace — see the README.
+    network_mode: "service:fdb"
+    depends_on:
+      fdb:
+        condition: service_healthy
+    environment:
+      FDB_CLUSTER_FILE_CONTENTS: "docker:docker@127.0.0.1:${FDB_PORT}"
+    command:
+      - "-mode=continuous"
+      - "-prefixes=${LOADGEN_PREFIXES:-/users,/orders,/events}"
+      - "-interval=${LOADGEN_INTERVAL:-5s}"
+    # Shutdown waits for the client to flush its final profile records
+    # (CSI_STATUS_DELAY is 10s), so give it longer than docker's 10s default.
+    stop_grace_period: 25s
+    restart: unless-stopped
+
+  # The ingest daemon, containerised, on the same profile as the load
+  # generator: `make load_start` produces AND ingests, so the dashboard moves
+  # without a host-side `make run`. Same image as loadgen.
+  ingester:
+    # The shipped profiler image (the repo-root Dockerfile), so the test bed
+    # exercises the artifact a release publishes, not a lookalike.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FDB_VERSION: ${FDB_VERSION}
+    profiles: ["load"]
+    # The same config file the host-side daemon reads, so both classify keys
+    # under the same prefixes. Ingesters with different prefix configurations
+    # write rows that never dedup, silently doubling every count.
+    command: ["-config", "/etc/fdbprof/config.yaml", "-verbose"]
+    volumes:
+      - ./config.yaml:/etc/fdbprof/config.yaml:ro
+    # Shares fdb's network namespace (FDB advertises 127.0.0.1); ClickHouse is
+    # still resolvable by service name because fdb's namespace sits on the
+    # compose network.
+    network_mode: "service:fdb"
+    depends_on:
+      fdb:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      FDB_CLUSTER_FILE_CONTENTS: "docker:docker@127.0.0.1:${FDB_PORT}"
+      CLICKHOUSE_ADDRESS: "clickhouse:9000"
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      # Labels every row with the test bed's cluster name; belt-and-braces with
+      # the mounted config.yaml, and authoritative if the two ever disagree.
+      FDB_CLUSTER_NAME: ${FDB_CLUSTER_NAME}
+      INGESTER_ID: testenv-ingester
+    # Long enough for a final flush with its retry.
+    stop_grace_period: 25s
+    restart: unless-stopped
+
+volumes:
+  fdb-data:
+  fdb-logs:
+  clickhouse-data:
+  grafana-data:

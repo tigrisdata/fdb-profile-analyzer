@@ -1,0 +1,22 @@
+<!-- The `fdb` cluster every Distributed table routes over. One shard: the
+     node itself. Single-node and sharded deployments share one schema — the
+     Distributed layer always exists, and only this file decides how wide it
+     fans out. The sharded variant (cluster-sharded.xml) replaces this mount
+     via docker-compose.sharded.yml. -->
+<clickhouse>
+    <remote_servers replace="replace">
+        <fdb>
+            <shard>
+                <!-- No replicas, so this is moot — kept explicit so nobody
+                     infers replication that is not there. -->
+                <internal_replication>false</internal_replication>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                    <user from_env="CLICKHOUSE_USER"/>
+                    <password from_env="CLICKHOUSE_PASSWORD"/>
+                </replica>
+            </shard>
+        </fdb>
+    </remote_servers>
+</clickhouse>

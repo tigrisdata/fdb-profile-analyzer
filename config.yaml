@@ -1,0 +1,71 @@
+# fdb-profile-analyzer configuration.
+#
+# Nearly every value below is a default; a real deployment need only state
+# what it changes (an empty file is valid and means "all defaults").
+#
+# Environment variables take precedence over this file when set:
+# FDB_CLUSTER_FILE, CLICKHOUSE_ADDRESS, CLICKHOUSE_PASSWORD, LOG_FORMAT.
+
+fdb:
+  # Empty means "use FDB_CLUSTER_FILE, or the system default location".
+  cluster_file: ""
+  # Which FoundationDB cluster this agent's rows are labelled with. Several
+  # clusters typically feed one ClickHouse; the dashboard's cluster dropdown
+  # selects between them. The bundled test bed is named "test".
+  cluster_name: test
+  api_version: 730
+  # Clients flush their profile buffers every CSI_STATUS_DELAY (10s), so polling
+  # much faster than that mostly finds nothing.
+  poll_interval: 2s
+  batch_size: 10000
+  max_partials: 1000
+  # Upper bound on key+value bytes read from FoundationDB per poll — the read
+  # pressure this daemon may put on the cluster. Lowering it slows draining and
+  # can cost profile history on a busy cluster; that loss shows up on the
+  # dashboard, and losing history is always preferred over leaning on
+  # production. 0 means the built-in default (32MB).
+  max_poll_bytes: 0
+
+clickhouse:
+  address: localhost:9000
+  database: fdb_profiles
+  username: fdb
+  password: fdb
+  # A batch is written when either threshold is reached.
+  flush_rows: 5000
+  flush_interval: 5s
+  dial_timeout: 10s
+
+logging:
+  # How the daemon writes its own logs: "json" (one object per line, for log
+  # collectors) or "text" (human-oriented key=value pairs, the built-in
+  # default when this section is absent).
+  format: json
+
+ingest:
+  # Mutation values are application payload and may contain personal data or
+  # secrets. Turn this off to keep mutation keys — which is all the hotspot
+  # analysis needs — without storing what was written.
+  capture_mutation_values: true
+  capture_conflict_ranges: true
+  # FoundationDB's profiling machinery profiles its own maintenance
+  # transactions. Left in, they top every hotspot ranking on an idle cluster.
+  skip_system_keyspace: true
+  # How often the cluster's client profiling settings (sample rate, size limit)
+  # are recorded to the profiling_config series that the dashboard plots. A
+  # change is always written immediately; this only sets how often an unchanged
+  # setting is reaffirmed, which is what distinguishes "still 1.0" from "no
+  # daemon was watching".
+  profiling_sample_interval: 15s
+
+# The map of your keyspace, and the dimension the dashboard groups by.
+# Longest match wins, so a specific prefix can sit alongside a broader one in
+# any order. Keys matching nothing are labelled with their own first 16
+# characters plus "(unknown)" — a pointer at where the unclassified workload
+# comes from, and the hint for the next prefix worth configuring.
+#
+# Replace these with your real prefixes.
+prefixes:
+  - /users
+  - /orders
+  - /events

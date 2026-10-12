@@ -1,0 +1,2471 @@
+{
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-clickhouse-datasource",
+      "name": "ClickHouse",
+      "version": "4.0.0"
+    }
+  ],
+  "uid": "fdb-profile-analyzer",
+  "title": "FoundationDB Profile Analyzer",
+  "description": "Transaction profiles tailed from FoundationDB. The query analyzer ranks prefixes by cost; the hotspot tables show the per-key skew that prefix-level aggregates hide.",
+  "tags": [
+    "foundationdb",
+    "profiles"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 8,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "description": "Which ClickHouse this dashboard reads. Every panel and variable follows it.",
+        "type": "datasource",
+        "query": "grafana-clickhouse-datasource",
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "description": "Which FoundationDB cluster's data to look at. In production several clusters feed one ClickHouse; every row carries the label its agent was configured with (fdb.cluster_name).",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "${datasource}"
+        },
+        "definition": "SELECT DISTINCT cluster FROM fdb_profiles.operations ORDER BY cluster",
+        "query": "SELECT DISTINCT cluster FROM fdb_profiles.operations ORDER BY cluster",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "key_prefix",
+        "label": "Key prefix",
+        "description": "Configured prefixes from config.yaml, first-16-bytes (unknown) labels for unmatched keys, plus (other) and (system).",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "${datasource}"
+        },
+        "definition": "SELECT DISTINCT key_prefix FROM fdb_profiles.operations WHERE key_prefix != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY key_prefix",
+        "query": "SELECT DISTINCT key_prefix FROM fdb_profiles.operations WHERE key_prefix != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY key_prefix",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "op_type",
+        "label": "Operation",
+        "description": "",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "${datasource}"
+        },
+        "definition": "SELECT DISTINCT op_type FROM fdb_profiles.operations WHERE op_type != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY op_type",
+        "query": "SELECT DISTINCT op_type FROM fdb_profiles.operations WHERE op_type != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY op_type",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "dc_id",
+        "label": "Data centre",
+        "description": "",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "${datasource}"
+        },
+        "definition": "SELECT DISTINCT dc_id FROM fdb_profiles.operations WHERE dc_id != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY dc_id",
+        "query": "SELECT DISTINCT dc_id FROM fdb_profiles.operations WHERE dc_id != '' AND (cluster IN ($cluster) OR '__all__' IN ($cluster)) ORDER BY dc_id",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "percentile",
+        "label": "Latency percentile",
+        "type": "custom",
+        "description": "Which latency quantile the latency panel draws.",
+        "query": "p50 : 0.5, p90 : 0.9, p95 : 0.95, p99 : 0.99",
+        "options": [],
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "selected": true,
+          "text": "p99",
+          "value": "0.99"
+        },
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "range_depth",
+        "label": "Range depth (bytes)",
+        "type": "custom",
+        "description": "How many leading key bytes define a range bucket in Hot key ranges.",
+        "query": "8,12,16,24,32,48",
+        "options": [],
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "selected": true,
+          "text": "16",
+          "value": "16"
+        },
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Profiling configuration",
+      "id": 18,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Client sample rate",
+      "id": 19,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "The fraction of transactions FoundationDB samples, as `fdbcli> profile client set <rate> <size>` last left it. This is the volume control on every count elsewhere on this dashboard: at 0.01 each row below stands for about a hundred transactions.\n\nStepped, because it holds until an operator changes it. Deliberately not filtered by the variables above \u2014 it is cluster-wide, and the point of having it here is to see it whatever else is selected. A gap means no ingester was running, which is not the same as profiling being off; that reads as zero.\n\nTo study only finely sampled data, drag-select a raised-rate window here: it sets the dashboard time range.",
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 2,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  $__timeInterval(sampled_at) AS time,\n  max(sample_rate)            AS \"Sample rate\"\nFROM fdb_profiles.profiling_config\nWHERE $__timeFilter(sampled_at)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\nGROUP BY time\nORDER BY time",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "spanNulls": false,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Profile buffer",
+      "id": 20,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "How much of the profile keyspace's size cap is in use, against the cap itself \u2014 the `<size>` half of `profile client set`.\n\nUsed approaching Limit is the warning sign: FoundationDB then trims the ring buffer oldest-first, past a lagging ingester's cursor if it has fallen behind. That is the one failure mode in this pipeline that loses profile records silently, with no error anywhere.\n\nWhen the buffer laps a slow or stopped ingester, the loss is not silent: a red history-gap annotation appears across every panel, and the History loss stat counts it.",
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 9,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 2,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  $__timeInterval(sampled_at)                     AS time,\n  maxIf(ring_buffer_bytes, ring_buffer_valid = 1) AS \"Used\",\n  max(size_limit)                                 AS \"Limit\",\n  maxIf(ring_buffer_bytes, ring_buffer_valid = 1)\n    / greatest(max(size_limit), 1)                AS \"Used %\"\nFROM fdb_profiles.profiling_config\nWHERE $__timeFilter(sampled_at)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\nGROUP BY time\nORDER BY time",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "spanNulls": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 25
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Limit"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisSoftMax",
+                "value": 1
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "stat",
+      "title": "History loss",
+      "id": 21,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "What the ring buffer has torn out of the recorded history in the selected window.\n\nGaps counts loss EVENTS \u2014 occasions when the buffer's trim horizon passed an ingester's cursor, live or across a restart. A gap's size in records is unknowable (the records are gone), so it is deliberately not shown as a record count: that number would be an invention. Dropped records is the countable structural loss \u2014 records whose remaining chunks were trimmed or evicted mid-reassembly.\n\nAnything non-zero here means charts below under-report for part of this window. Losing history is an accepted trade \u2014 the pipeline never pushes back on the cluster \u2014 but it is only acceptable because this panel and the red annotations make it visible.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "refId": "A",
+          "rawSql": "SELECT sum(laps + resume_gaps) AS \"Gaps\",\n       sum(records_dropped)    AS \"Dropped records\"\nFROM fdb_profiles.profiling_config\nWHERE $__timeFilter(sampled_at)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Overview",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Operations",
+      "id": 2,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT count() AS ops\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Operations/sec",
+      "id": 3,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT count() / greatest(toUnixTimestamp($__toTime) - toUnixTimestamp($__fromTime), 1) AS ops_per_sec\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Error rate",
+      "id": 4,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT countIf(error_code != 0) * 100.0 / greatest(count(), 1) AS error_pct\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p99 latency",
+      "id": 5,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT quantile(0.99)(latency) AS p99\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time) AND latency > 0\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Query analyzer",
+      "id": 6,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Operations by prefix",
+      "id": 7,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Load is total time divided by the wall-clock length of the selected range: the average number of operations in flight, and therefore how much of the cluster this prefix is occupying. It ranks by real cost rather than raw frequency, which is why it is the default sort. Every column header is sortable.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  key_prefix                                    AS \"Prefix\",\n  op_type                                       AS \"Op\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1)                                       AS \"Activity\",\n  sum(latency) / greatest(toUnixTimestamp($__toTime) - toUnixTimestamp($__fromTime), 1)                      AS \"Load\",\n  count()                                       AS \"Count\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. count\",\n  count() / greatest(toUnixTimestamp($__toTime) - toUnixTimestamp($__fromTime), 1)                           AS \"Ops/sec\",\n  sum(latency)                                  AS \"Total time\",\n  avg(latency)                                  AS \"Avg\",\n  quantile(0.95)(latency)                       AS \"p95\",\n  quantile(0.99)(latency)                       AS \"p99\",\n  max(latency)                                  AS \"Max\",\n  countIf(error_code != 0)                      AS \"Errors\"\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY key_prefix, op_type\nORDER BY \"Load\" DESC",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Load",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              },
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Load"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total time"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Prefix"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Filter dashboard to ${__value.text}",
+                    "url": "?${__url_time_range}&var-key_prefix=${__value.text}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ops/sec"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errors"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Throughput and latency",
+      "id": 8,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Throughput by operation",
+      "id": 9,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "One series per operation type, decoded from the profile record. A flat zero error_* trio is the healthy state.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 2,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  $__timeInterval(event_time) AS time,\n  countIf(op_type = 'get')             AS get,\n  countIf(op_type = 'get_range')       AS get_range,\n  countIf(op_type = 'get_version')     AS get_version,\n  countIf(op_type = 'commit')          AS commit,\n  countIf(op_type = 'error_get')       AS error_get,\n  countIf(op_type = 'error_get_range') AS error_get_range,\n  countIf(op_type = 'error_commit')    AS error_commit\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY time\nORDER BY time",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "spanNulls": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "${percentile:text} latency by operation",
+      "id": 10,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "The selected percentile (picker at the top, default p99) per operation type. Error events carry no latency and are excluded.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 2,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  $__timeInterval(event_time) AS time,\n  quantileIf($percentile)(latency, op_type = 'get')         AS get,\n  quantileIf($percentile)(latency, op_type = 'get_range')   AS get_range,\n  quantileIf($percentile)(latency, op_type = 'get_version') AS get_version,\n  quantileIf($percentile)(latency, op_type = 'commit')      AS commit\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time) AND latency > 0\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY time\nORDER BY time",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "spanNulls": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Hotspots",
+      "id": 11,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Hot read keys",
+      "id": 12,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Cumulative share is the point of this table: 'the top 10 keys are 60% of all reads' is a finding, and a flat distribution is equally a finding.",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  key                                                             AS \"Key\",\n  if(key = '', '(empty)', hex(key))                                                        AS \"hex(key)\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1)                                                         AS \"Activity\",\n  count()                                                         AS \"Reads\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. reads\",\n  count() * 100.0 / sum(count()) OVER ()                          AS \"Share\",\n  sum(count()) OVER (ORDER BY count() DESC, key\n                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    * 100.0 / sum(count()) OVER ()                                AS \"Cumulative\",\n  avg(latency)                                                    AS \"Avg latency\",\n  sum(value_size)                                                 AS \"Bytes read\"\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND op_type = 'get'\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY key\nORDER BY \"Reads\" DESC, \"Key\"\nLIMIT 50",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Reads",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              },
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cumulative"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bytes read"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. reads"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Hot write keys",
+      "id": 13,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Counts SET_VALUE and ADD_VALUE mutations, the same pair FoundationDB's own analyzer uses. Cumulative share is the point of this table: 'the top 10 keys are 60% of all reads' is a finding, and a flat distribution is equally a finding.",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  key                                                             AS \"Key\",\n  if(key = '', '(empty)', hex(key))                                                        AS \"hex(key)\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1)                                                         AS \"Activity\",\n  count()                                                         AS \"Writes\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. writes\",\n  count() * 100.0 / sum(count()) OVER ()                          AS \"Share\",\n  sum(count()) OVER (ORDER BY count() DESC, key\n                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    * 100.0 / sum(count()) OVER ()                                AS \"Cumulative\",\n  sum(value_size)                                                 AS \"Bytes written\"\nFROM fdb_profiles.mutations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND mutation_type IN ('SET_VALUE', 'ADD_VALUE')\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\nGROUP BY key\nORDER BY \"Writes\" DESC, \"Key\"\nLIMIT 50",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Writes",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              },
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cumulative"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bytes written"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. writes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Hot scanned ranges",
+      "id": 14,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Literal get_range calls, grouped by their exact (begin, end) pair: WHICH SCANS run hot. A single wide scan can outweigh thousands of point reads. Contrast with Hot keyspace regions, which ignores call shapes and asks where in the keyspace traffic lands.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  key                                                             AS \"Begin\",\n  if(key = '', '(empty)', hex(key))                                                        AS \"hex(key)\",\n  end_key                                                         AS \"End\",\n  if(end_key = '', '(empty)', hex(end_key))                                                    AS \"hex(end_key)\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1)                                                         AS \"Activity\",\n  count()                                                         AS \"Scans\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. scans\",\n  count() * 100.0 / sum(count()) OVER ()                          AS \"Share\",\n  avg(range_size)                                                 AS \"Avg bytes\",\n  avg(latency)                                                    AS \"Avg latency\"\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND op_type = 'get_range'\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY key, end_key\nORDER BY \"Scans\" DESC, \"Begin\"\nLIMIT 25",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Scans",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              },
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. scans"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Hot keyspace regions",
+      "id": 15,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Every read and written key, bucketed by its first $range_depth bytes and ranked by combined traffic: WHERE in the keyspace load lands, regardless of whether it arrived as gets, scans or writes. 'Distinct keys' separates one hot key (low) from a genuinely hot region (high). Adjust the depth variable to zoom the bucketing in or out.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  substring(key, 1, $range_depth)                                 AS \"Range\",\n  if(substring(key, 1, $range_depth) = '', '(empty)', hex(substring(key, 1, $range_depth)))                            AS \"hex(range)\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1)                                                         AS \"Activity\",\n  count()                                                         AS \"Ops\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. ops\",\n  countIf(kind = 'read')                                          AS \"Reads\",\n  countIf(kind = 'write')                                         AS \"Writes\",\n  uniqExact(key)                                                  AS \"Distinct keys\",\n  count() * 100.0 / sum(count()) OVER ()                          AS \"Share\",\n  sum(count()) OVER (ORDER BY count() DESC, substring(key, 1, $range_depth)\n                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    * 100.0 / sum(count()) OVER ()                                AS \"Cumulative\"\nFROM (\n    SELECT key, cluster, key_prefix, event_time, sample_rate, 'read' AS kind\n    FROM fdb_profiles.operations\n    WHERE op_type IN ('get', 'get_range') AND key != ''\n    UNION ALL\n    SELECT key, cluster, key_prefix, event_time, sample_rate, 'write' AS kind\n    FROM fdb_profiles.mutations\n    WHERE mutation_type IN ('SET_VALUE', 'ADD_VALUE')\n)\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\nGROUP BY \"Range\"\nORDER BY \"Ops\" DESC, \"Range\"\nLIMIT 40",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Ops",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              },
+              {
+                "id": "custom.filterable",
+                "value": false
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cumulative"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. ops"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Conflicts",
+      "id": 22,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits and conflicts",
+      "id": 23,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "Commits against commits that lost a conflict (error 1020, decoded as error_commit). A rising conflicts share means transactions are racing over the same keys \u2014 the table beside this names the ranges.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 2,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  $__timeInterval(event_time)          AS time,\n  countIf(op_type = 'commit')          AS commits,\n  countIf(op_type = 'error_commit')    AS conflicts\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND op_type IN ('commit', 'error_commit')\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nGROUP BY time\nORDER BY time",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "spanNulls": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "conflicts"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Conflicting ranges",
+      "id": 24,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "The read and write conflict ranges carried by transactions that lost a conflict, ranked by how often each range was involved. `read` rows are what the loser had read \u2014 the data a winner invalidated under it; `write` rows are what it was trying to write. A range topping this table is the contention point to redesign around. Answers the question the conflict_ranges table was recorded for.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  begin_key                                               AS \"Begin\",\n  if(begin_key = '', '(empty)', hex(begin_key))                                          AS \"hex(begin_key)\",\n  end_key                                                 AS \"End\",\n  if(end_key = '', '(empty)', hex(end_key))                                            AS \"hex(end_key)\",\n  kind                                                    AS \"Kind\",\n  sparkbar(20, toUnixTimestamp($__fromTime), toUnixTimestamp($__toTime))(toUnixTimestamp(event_time), 1) AS \"Activity\",\n  count()                                                 AS \"Conflicts\",\n  round(sum(if(sample_rate > 0, 1.0 / sample_rate, 1.0))) AS \"Est. conflicts\",\n  uniqExact(transaction_id)                               AS \"Failed txns\",\n  count() * 100.0 / sum(count()) OVER ()                  AS \"Share\"\nFROM fdb_profiles.conflict_ranges\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND transaction_id GLOBAL IN (\n    SELECT transaction_id FROM fdb_profiles.operations\n    WHERE $__timeFilter(event_time) AND op_type = 'error_commit'\n      AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  )\nGROUP BY begin_key, end_key, kind\nORDER BY \"Conflicts\" DESC, \"Begin\"\nLIMIT 25",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Activity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. conflicts"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Recent operations",
+      "id": 16,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Recent operations",
+      "id": 17,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "${datasource}"
+      },
+      "description": "The raw operations behind the aggregates \u2014 the drill-down target of the prefix links in the query analyzer. Filtered by the same variables as everything else.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "${datasource}"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT\n  event_time                        AS \"Time\",\n  key_prefix                        AS \"Prefix\",\n  op_type                           AS \"Op\",\n  key                               AS \"Key\",\n  if(key = '', '(empty)', hex(key))                          AS \"hex(key)\",\n  latency                           AS \"Latency\",\n  value_size                        AS \"Value bytes\",\n  range_size                        AS \"Range bytes\",\n  num_mutations                     AS \"Mutations\",\n  commit_bytes                      AS \"Commit bytes\",\n  error_code                        AS \"Error\",\n  transaction_id                    AS \"Txn\"\nFROM fdb_profiles.operations\nWHERE $__timeFilter(event_time)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\n  AND (key_prefix IN ($key_prefix) OR '__all__' IN ($key_prefix))\n  AND (op_type IN ($op_type) OR '__all__' IN ($op_type))\n  AND (dc_id IN ($dc_id) OR '__all__' IN ($dc_id))\nORDER BY event_time DESC\nLIMIT 200",
+          "refId": "A",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          },
+          "meta": {
+            "builderOptions": {
+              "fields": [],
+              "limit": 0,
+              "mode": "list"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Time",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "inspect": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Range bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commit bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "History gaps",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "${datasource}"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "red",
+        "target": {
+          "format": 1,
+          "queryType": "sql",
+          "refId": "Anno",
+          "rawSql": "SELECT toUnixTimestamp64Milli(sampled_at) AS time,\n       multiIf(laps > 0 AND resume_gaps > 0, 'Profile history gap: ring buffer lapped, live and across a restart',\n               laps > 0, 'Profile history gap: ring buffer lapped the running ingester; records were trimmed unread',\n               'Profile history gap across an ingester restart: records written meanwhile may have been trimmed unread') AS text,\n       'history-gap' AS tags\nFROM fdb_profiles.profiling_config\nWHERE $__timeFilter(sampled_at) AND (laps > 0 OR resume_gaps > 0)\n  AND (cluster IN ($cluster) OR '__all__' IN ($cluster))\nORDER BY time",
+          "builderOptions": {
+            "fields": [],
+            "limit": 0,
+            "mode": "list"
+          }
+        }
+      }
+    ]
+  }
+}

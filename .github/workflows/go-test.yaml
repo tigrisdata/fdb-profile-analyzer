@@ -1,0 +1,158 @@
+name: go-test
+
+# Every pull request: the commit-message convention, the unit tests, both
+# integration topologies, and a build of the container image without pushing
+# it, so a broken Dockerfile is red before merge — as separate jobs so a red
+# one is readable at a glance. The suites run against the docker-compose test
+# bed inside the runner (ubuntu-latest ships docker and compose v2). The Go
+# bindings link against libfdb_c, so the runner gets FoundationDB's client
+# package first, exactly as a developer machine does. See README.md, "CI and
+# releases".
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+concurrency:
+  group: go-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-messages:
+    name: Commit messages carry a version bump
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: "Every commit subject starts with major:, minor: or patch:"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bad="$(git log --no-merges --format='%h %s' "$BASE..$HEAD" | grep -vE '^[0-9a-f]+ (major|minor|patch): ' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::every commit subject must start with 'major: ', 'minor: ' or 'patch: ' — the release on merge takes its version bump from them"
+            echo "$bad"
+            exit 1
+          fi
+          echo "all $(git rev-list --no-merges --count "$BASE..$HEAD") commit(s) name their bump"
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install FoundationDB's client package (libfdb_c, which the Go bindings link against)
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^FDB_VERSION=//p' .env)"
+          curl -fsSL -o /tmp/fdb-clients.deb \
+            "https://github.com/apple/foundationdb/releases/download/$v/foundationdb-clients_$v-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb-clients.deb
+
+      - name: Build, vet and test
+        run: make test
+
+  integration:
+    name: Integration suite (single-shard ClickHouse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install FoundationDB's client package (host fdbcli + libfdb_c)
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^FDB_VERSION=//p' .env)"
+          curl -fsSL -o /tmp/fdb-clients.deb \
+            "https://github.com/apple/foundationdb/releases/download/$v/foundationdb-clients_$v-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb-clients.deb
+
+      - name: Fresh test bed, every test, torn down afterwards
+        run: make integration_test
+
+      - name: Upload the run's results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: test-results/
+          if-no-files-found: ignore
+
+  integration-sharded:
+    name: Integration suite (two-shard ClickHouse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install FoundationDB's client package (host fdbcli + libfdb_c)
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^FDB_VERSION=//p' .env)"
+          curl -fsSL -o /tmp/fdb-clients.deb \
+            "https://github.com/apple/foundationdb/releases/download/$v/foundationdb-clients_$v-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb-clients.deb
+
+      - name: Fresh two-shard test bed, every test, torn down afterwards
+        run: make integration_test_sharded
+
+      - name: Upload the run's results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-sharded-results
+          path: test-results/
+          if-no-files-found: ignore
+
+  image:
+    name: Container image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: The FoundationDB client version the test bed pins
+        id: inputs
+        run: echo "fdb_version=$(sed -n 's/^FDB_VERSION=//p' .env)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the image, without pushing
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            VERSION=dev
+            FDB_VERSION=${{ steps.inputs.outputs.fdb_version }}
